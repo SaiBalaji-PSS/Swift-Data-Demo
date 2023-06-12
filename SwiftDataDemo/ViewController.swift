@@ -25,19 +25,9 @@ class ViewController: UIViewController {
         taskTableView.delegate = self
         taskTableView.dataSource = self
         taskTableView.register(UITableViewCell.self,forCellReuseIdentifier: "CELL")
-        configureSwiftData()
+       
         configureUI()
-        self.fetchData { data , error  in
-            if let error{
-                print(error)
-            }
-            if let data{
-                self.tasks = data
-                DispatchQueue.main.async {
-                    self.taskTableView.reloadData()
-                }
-            }
-        }
+        self.fetchData()
         
       
     }
@@ -48,16 +38,18 @@ class ViewController: UIViewController {
         navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Add", style: .plain, target: self, action: #selector(addItem))
     }
     
-    func configureSwiftData(){
-        do{
-             container = try ModelContainer(for: [TodoModel.self])
-            if let container{
-                context = ModelContext(container)
+ 
+    func fetchData(){
+        DatabaseService.shared.fetchTasks { data , error  in
+            if let error{
+                print(error)
             }
-             
-        }
-        catch{
-            print(error)
+            if let data{
+                self.tasks = data
+                DispatchQueue.main.async {
+                    self.taskTableView.reloadData()
+                }
+            }
         }
     }
     
@@ -66,9 +58,11 @@ class ViewController: UIViewController {
         let avc = UIAlertController(title: "Info", message: "Add new item", preferredStyle: .alert)
         avc.addTextField()
         avc.addAction(UIAlertAction(title: "Ok", style: .default, handler: { action  in
-            if let textfield = avc.textFields?.first{
-                print(textfield.text ?? "")
-                self.saveTask(task: textfield.text)
+            if let taskName = avc.textFields?.first?.text{
+       
+               
+                DatabaseService.shared.saveTask(taskName: taskName)
+                self.fetchData()
             }
         }))
         self.present(avc, animated: true, completion: nil)
@@ -78,93 +72,6 @@ class ViewController: UIViewController {
 }
 
 
-
-extension ViewController{
-    func saveTask(task: String?){
- 
-        guard let task else{return }
-        
-        if let context{
-            let taskToBeSaved = TodoModel(id:UUID().uuidString,taskname:"\(task)", time: Date().timeIntervalSince1970)
-            context.insert(object: taskToBeSaved)
-            self.fetchData { data , error  in
-                if let error{
-                    print(error)
-                }
-                if let data{
-                    self.tasks = data
-                    print(self.tasks.last?.taskname)
-                    DispatchQueue.main.async {
-                        self.taskTableView.reloadData()
-                    }
-                }
-            }
-            
-
-        }
-        
-        
-        
-    }
-    
-    func deleteData(index: IndexPath){
-        let taskToBeDeleted = self.tasks[index.row]
-       
-            if let context{
-                context.delete(taskToBeDeleted)
-                self.tasks.remove(at: index.row)
-                self.taskTableView.reloadData()
-            }
-        
-      
-    }
-    
-    func fetchData(onCompletion:@escaping([TodoModel]?,Error?)->(Void)){
-       
-        
-        let descriptor = FetchDescriptor<TodoModel>(sortBy: [SortDescriptor<TodoModel>(\.time)])
-        do{
-            if let context{
-                let data = try context.fetch(descriptor)
-             
-                onCompletion(data,nil)
-            }
-        }
-        catch{
-            print(error)
-            onCompletion(nil,error)
-        }
-    }
-    
-    func update(index: IndexPath,taskname: String){
-        var taskToBeUpdated = self.tasks[index.row]
-        if let context{
-            taskToBeUpdated.taskname = taskname
-            
-            do{
-                try context.save()
-                self.fetchData { data , error  in
-                    if let error{
-                        print(error)
-                    }
-                    if let data{
-                        self.tasks = data
-                        DispatchQueue.main.async {
-                            self.taskTableView.reloadData()
-                        }
-                    }
-                }
-            }
-            catch{
-                print(error)
-            }
-        }
-    }
-    
-
-    
-   
-}
 
 extension ViewController: UITableViewDelegate, UITableViewDataSource{
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -177,7 +84,11 @@ extension ViewController: UITableViewDelegate, UITableViewDataSource{
     }
     func tableView(_ tableView: UITableView, editActionsForRowAt indexPath: IndexPath) -> [UITableViewRowAction]? {
         let delete = UITableViewRowAction(style: .default, title: "Delete") { _, indexpath  in
-            self.deleteData(index: indexPath)
+          
+            
+            DatabaseService.shared.deleteTask(task: self.tasks[indexpath.row])
+            self.fetchData()
+            
         }
         let update = UITableViewRowAction(style: .default, title: "Update") { _, indexpath  in
             let avc = UIAlertController(title: "Info", message: "Add new item", preferredStyle: .alert)
@@ -185,7 +96,8 @@ extension ViewController: UITableViewDelegate, UITableViewDataSource{
             avc.addAction(UIAlertAction(title: "Ok", style: .default, handler: { action  in
                 if let textfield = avc.textFields?.first?.text{
                    
-                    self.update(index: indexPath, taskname: textfield)
+                    DatabaseService.shared.updateTask(task: self.tasks[indexpath.row], newTaskName: textfield)
+                    self.fetchData()
                 }
             }))
             self.present(avc, animated: true, completion: nil)
