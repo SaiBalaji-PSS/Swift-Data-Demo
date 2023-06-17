@@ -17,8 +17,11 @@ class DatabaseService{
         do{
              container = try ModelContainer(for: [TodoModel.self])
             if let container{
+                 
                 context = ModelContext(container)
+                
             }
+            
              
         }
         catch{
@@ -49,15 +52,8 @@ class DatabaseService{
     
     func updateTask(task: TodoModel,newTaskName: String){
         let taskToBeUpdated = task
-        if let context{
-            taskToBeUpdated.taskname = newTaskName
-            do{
-                try context.save()
-            }
-            catch{
-                print(error)
-            }
-        }
+        taskToBeUpdated.taskname = newTaskName
+
       
     }
     
